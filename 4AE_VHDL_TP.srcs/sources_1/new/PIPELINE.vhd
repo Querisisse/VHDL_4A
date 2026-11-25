@@ -88,6 +88,8 @@ signal Sig_QA, sig_QB : std_logic_vector (7 downto 0);
 signal flag_C, flag_O, flag_N : std_logic;
 signal sig_S : unsigned (7 downto 0);
 signal  sig_Ctrl_Alu : std_logic_vector (2 downto 0);
+signal sig_RW : STD_LOGIC;
+signal sig_data_out : STD_LOGIC_VECTOR(7 downto 0);
 
 begin
 
@@ -120,15 +122,15 @@ unital : ALU
             N=> flag_N
             );
 
---mem_data : memoire_donnees is
---    Port map(
---        CLK => up_CLK,
---        RST => up_RST,
---        RW  : in  STD_LOGIC;
---        ADR : in  STD_LOGIC_VECTOR(7 downto 0);
---        DATA_IN => B_EXMEM,
---        DATA_OUT : out STD_LOGIC_VECTOR(7 downto 0)
---    );
+mem_data : memoire_donnees
+    Port map(
+        CLK => up_CLK,
+        RST => up_RST,
+        RW  => sig_RW,
+        ADR => B_EXMEM,
+        DATA_IN => B_EXMEM,
+        DATA_OUT => sig_data_out
+    );
 
     
     
@@ -138,38 +140,12 @@ unital : ALU
     --ATTENTIONNNN FAILLE SECU MATERIELLE SI OPCODE INCONNU ON ECRIT DANS UN REGISTE 
     sig_W <= '0' when (OP_MEMRE = x"08") else '1';
     
-    --MUX étage 2 (COP)
-    B_DIEX <= sig_QA when (OP_LIDI = x"05") else B_LIDI;
     
-    --Mux étage 3 (question 3), en gros si on se sert de l'alu on recupere S
-    -- tous les Mux dans process(clk)?
-    -- On met tout les unsigned en std_logic_vector?
-    B_EXMEM <= std_logic_vector(sig_S) when (OP_DIEX = x"01" or OP_DIEX = x"02" or OP_DIEX = x"03"
-    or OP_DIEX = x"14" or OP_DIEX = x"15" or OP_DIEX = x"16" or OP_DIEX = x"17")
-    else B_DIEX;
     
-    --Le LC de l'étage 3 (question 3)
-    process
-    begin
-    case(OP_DIEX) is
-      when x"01" =>
-        sig_Ctrl_ALU <= "000" ;
-      when x"02" =>
-        sig_Ctrl_ALU <= "010" ;
-      when x"03" =>
-        sig_Ctrl_ALU <= "001" ;
-      when x"14" =>
-        sig_Ctrl_ALU <= "100" ;
-      when x"15" =>
-        sig_Ctrl_ALU <= "011" ;
-      when x"16" =>
-        sig_Ctrl_ALU <= "101" ;
-      when x"17" =>
-        sig_Ctrl_ALU <= "110" ;
-      when others =>
-            null;
-    end case;
-    end process;
+   
+    
+   
+    
     
     
     process(uP_CLK)
@@ -187,14 +163,35 @@ unital : ALU
             OP_LIDI<= instruction(31 downto 24);
             B_LIDI <=instruction ( 15 downto 8);
             C_LIDI <=instruction (7 downto 0);
+            
+            
 
             A_DIEX <= A_LIDI;
             A_EXMEM <= A_DIEX;
             A_MEMRE <= A_EXMEM; 
             
-            B_DIEX <= B_LIDI;
-            B_EXMEM <= B_DIEX;
-            B_MEMRE <= B_EXMEM; 
+            --MUX étage 2 (COP)
+            case(OP_LIDI) is
+            when x"05" =>
+                B_DIEX <= sig_QA;
+            when others =>
+                B_DIEX <= B_LIDI;
+            end case; 
+            
+             --Mux étage 3 (question 3), en gros si on se sert de l'alu on recupere S
+             -- On met tout les unsigned en std_logic_vector?
+            B_EXMEM <= std_logic_vector(sig_S) when (OP_DIEX = x"01" or OP_DIEX = x"02" or OP_DIEX = x"03"
+            or OP_DIEX = x"14" or OP_DIEX = x"15" or OP_DIEX = x"16" or OP_DIEX = x"17")
+            else B_DIEX;
+            
+            --Mux étage 4 (LOAD)
+            case (OP_EXMEM) is
+            when x"07" =>
+                B_MEMRE <= sig_data_out;
+            when others =>
+                B_MEMRE <= B_EXMEM;
+            end case;
+
             
 --            C_DIEX <= C_LIDI;
 --            C_EXMEM <= C_DIEX;
@@ -203,6 +200,36 @@ unital : ALU
             OP_DIEX <= OP_LIDI;
             OP_EXMEM <= OP_DIEX;
             OP_MEMRE <= OP_EXMEM; 
+             --Le LC de l'étage 3 (question 3)
+            case(OP_DIEX) is
+            when x"01" =>
+                sig_Ctrl_ALU <= "000" ;
+            when x"02" =>
+                sig_Ctrl_ALU <= "010" ;
+            when x"03" =>
+                sig_Ctrl_ALU <= "001" ;
+            when x"14" =>
+                sig_Ctrl_ALU <= "100" ;
+            when x"15" =>
+                sig_Ctrl_ALU <= "011" ;
+            when x"16" =>
+                sig_Ctrl_ALU <= "101" ;
+            when x"17" =>
+                sig_Ctrl_ALU <= "110" ;
+            when others =>
+                null;
+             end case;
+              
+            --LC étage 4 (LOAD)
+            case(OP_EXMEM) is
+            when x"07" =>
+                sig_RW <= '0';
+            when others =>
+                null;
+            end case;
+            
+            
+   
         end if; 
     end if ;
         
